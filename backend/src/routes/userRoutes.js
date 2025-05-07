@@ -1,11 +1,18 @@
 const express = require("express");
 
 const { getMe } = require("../controllers/userController");
+const {
+  getGeneralNews,
+  getPersonalizedNews,
+} = require("../controllers/newsController");
 
-const { verifyToken } = require("../utils/verifyUser");
+// Correctly import verifyToken as a default export
+const verifyToken = require("../utils/verifyUser");
 
 const router = express.Router();
 
 router.route("/getMe").get(verifyToken, getMe);
+router.route("/allNews").get(verifyToken, getGeneralNews);
+router.route("/personalizedNews").get(verifyToken, getPersonalizedNews);
 
 module.exports = router;

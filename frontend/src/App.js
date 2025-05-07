@@ -1,19 +1,33 @@
-import React from 'react';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
-import Home from './pages/Home';
-import About from './pages/About';
+import React, { useState } from "react";
+import {
+  BrowserRouter as Router,
+  Route,
+  Switch,
+  Redirect,
+} from "react-router-dom";
+import Landing from "./components/Landing";
+import Login from "./components/Login";
+import News from "./components/News";
 
-function App() {
+const App = () => {
+  const [token, setToken] = useState(localStorage.getItem("token"));
+
   return (
     <Router>
-      <div>
-        <Switch>
-          <Route path="/" exact component={Home} />
-          <Route path="/about" component={About} />
-        </Switch>
-      </div>
+      <Switch>
+        <Route path="/" exact>
+          <Redirect to="/signup" />
+        </Route>
+        <Route path="/signup" component={Landing} />
+        <Route path="/login">
+          <Login setToken={setToken} />
+        </Route>
+        <Route path="/news">
+          {token ? <News /> : <Redirect to="/login" />}
+        </Route>
+      </Switch>
     </Router>
   );
-}
+};
 
 export default App;

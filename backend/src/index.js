@@ -6,6 +6,7 @@ const ApiError = require("./utils/apiError");
 const mountRoutes = require("./routes");
 const dotenv = require("dotenv");
 dotenv.config();
+console.log("Loaded API Key:", process.env.NEWS_API_KEY); // Should log the API key
 const dbConnection = require("./config/db");
 const globalError = require("./middlewares/errorMiddleware");
 const cors = require("cors");
