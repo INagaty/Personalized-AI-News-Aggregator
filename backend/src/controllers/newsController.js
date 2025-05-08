@@ -2,56 +2,65 @@ const asyncHandler = require("express-async-handler");
 const axios = require("axios");
 const ApiError = require("../utils/apiError");
 
-// Helper function to handle summarization and sentiment analysis safely
-const processTextWithAI = async (text) => {
-  // Don't try to summarize if text is too short or null/undefined
-  if (!text || text.length < 30) {
-    console.log("Text too short for processing");
-    return {
-      summary: text,
-      sentiment: "Neutral",
-      confidence: 0.5,
-    };
-  }
-
+// Helper function to handle summarization separately
+const summarizeText = async (text) => {
   try {
-    const response = await axios.post(
+    console.log("Starting summarization..."); // Log before summarization
+    const summaryResponse = await axios.post(
       "http://localhost:5000/api/summarize",
       { text },
-      { timeout: 8000 } // 8 second timeout to prevent hanging
+      { timeout: 180000 }
     );
 
-    return {
-      summary: response.data.summary,
-      sentiment: response.data.sentiment,
-      confidence: response.data.confidence,
-    };
+    console.log("Summarization complete:", summaryResponse.data.summary); // Log summary result
+    return summaryResponse.data.summary;
   } catch (err) {
-    // Handle various error types
-    if (err.code === "ECONNREFUSED") {
-      console.error("Flask API server is not running or not accessible");
-    } else if (err.response) {
-      console.error(
-        `AI Processing API error (${err.response.status}): ${
-          err.response.data.error || err.message
-        }`
-      );
-    } else if (err.request) {
-      console.error(`No response received: ${err.message}`);
-    } else {
-      console.error(`AI processing failed: ${err.message}`);
-    }
-
-    // Fall back to original text with neutral sentiment
-    return {
-      summary: text,
-      sentiment: "Neutral",
-      confidence: 0.5,
-    };
+    console.error("Error during summarization:", err.message);
+    return text; // Fallback if summarization fails
   }
 };
 
-// Get general news with AI processing
+// Helper function to get sentiment of a text
+const getSentiment = async (text) => {
+  try {
+    console.log("Starting sentiment analysis with text:", text);
+
+    if (!text || typeof text !== "string" || text.trim() === "") {
+      throw new Error("Invalid or empty text provided for sentiment analysis");
+    }
+
+    const sentimentResponse = await axios.post(
+      "http://localhost:5000/api/sentiment",
+      { text },
+      {
+        timeout: 60000,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("Sentiment analysis complete:", sentimentResponse.data);
+
+    // Assuming that the sentiment response includes probabilities for 'negative', 'neutral', and 'positive'
+    return {
+      negative: sentimentResponse.data.negative || 0.0,
+      neutral: sentimentResponse.data.neutral || 0.0,
+      positive: sentimentResponse.data.positive || 0.0,
+    };
+  } catch (err) {
+    console.error("Error during sentiment analysis:", err.message);
+
+    if (err.response) {
+      console.error("Error Response:", err.response.data);
+      console.error("Error Status:", err.response.status);
+    }
+
+    return { negative: 0.0, neutral: 1.0, positive: 0.0 }; // Default to neutral if there’s an error
+  }
+};
+
+// Get general news with summarization (but not sentiment)
 exports.getGeneralNews = asyncHandler(async (req, res, next) => {
   const { query } = req.query;
 
@@ -65,7 +74,6 @@ exports.getGeneralNews = asyncHandler(async (req, res, next) => {
       },
     });
 
-    // Check if we have articles
     if (!response.data.articles || response.data.articles.length === 0) {
       return res.status(200).json({
         status: "success",
@@ -74,23 +82,24 @@ exports.getGeneralNews = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Process articles one by one
+    // Process articles to only summarize
     const processedArticles = await Promise.all(
       response.data.articles.map(async (article) => {
         const originalText =
           article.description || article.content || article.title;
 
-        const processed = await processTextWithAI(originalText);
+        // Summarize the text
+        const summary = await summarizeText(originalText);
 
         return {
           title: article.title,
-          description: processed.summary,
+          description: summary,
           source: article.source.name,
           publishedAt: article.publishedAt,
           url: article.url,
           urlToImage: article.urlToImage,
-          sentiment: processed.sentiment,
-          sentimentConfidence: processed.confidence,
+          sentiment: "Not calculated", // Placeholder until sentiment is fetched separately
+          sentimentConfidence: 0,
         };
       })
     );
@@ -106,7 +115,27 @@ exports.getGeneralNews = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Get personalized news with AI processing
+// Endpoint to get sentiment for a specific article's summary
+// Endpoint to get sentiment for a specific article's summary
+exports.getSentimentForSummary = asyncHandler(async (req, res, next) => {
+  const { summary } = req.body;
+
+  try {
+    const sentimentResult = await getSentiment(summary);
+
+    res.status(200).json({
+      status: "success",
+      negative: sentimentResult.negative,
+      neutral: sentimentResult.neutral,
+      positive: sentimentResult.positive,
+    });
+  } catch (error) {
+    console.error("Error in getSentimentForSummary:", error.message);
+    next(error);
+  }
+});
+
+// Get personalized news with summarization (but not sentiment)
 exports.getPersonalizedNews = asyncHandler(async (req, res, next) => {
   const user = req.user;
   const preferences = user?.preferences || ["general"];
@@ -123,24 +152,24 @@ exports.getPersonalizedNews = asyncHandler(async (req, res, next) => {
         },
       });
 
-      // Process articles for this category
       const processed = await Promise.all(
         response.data.articles.map(async (article) => {
           const originalText =
             article.description || article.content || article.title;
 
-          const processedData = await processTextWithAI(originalText);
+          // First, summarize the text
+          const summary = await summarizeText(originalText);
 
           return {
             title: article.title,
-            description: processedData.summary,
+            description: summary,
             source: article.source.name,
             publishedAt: article.publishedAt,
             url: article.url,
             urlToImage: article.urlToImage,
             category: category,
-            sentiment: processedData.sentiment,
-            sentimentConfidence: processedData.confidence,
+            sentiment: "Not calculated", // Placeholder for sentiment
+            sentimentConfidence: 0,
           };
         })
       );

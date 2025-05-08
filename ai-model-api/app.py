@@ -3,6 +3,7 @@ from flask_cors import CORS
 import traceback
 import logging
 from model import load_models, summarize, analyze_sentiment
+import time  # For time tracking
 
 # Set up logging
 logging.basicConfig(
@@ -39,13 +40,16 @@ def summarize_text():
                 "note": "Text too short for summarization"
             })
 
+        logger.info("Starting summarization...")
+        start_time = time.time()
+
         summary = summarize(text)
-        sentiment_result = analyze_sentiment(summary)
+
+        end_time = time.time()
+        logger.info(f"Summarization took {end_time - start_time:.2f} seconds")
 
         return jsonify({
             "summary": summary,
-            "sentiment": sentiment_result["label"],
-            "confidence": sentiment_result["confidence"]
         })
 
     except Exception as e:
@@ -54,14 +58,44 @@ def summarize_text():
         return jsonify({
             "error": str(e),
             "summary": text[:150] + "..." if len(text) > 150 else text,
-            "sentiment": "Neutral",
-            "confidence": 0.5
         }), 500
+
+
+@app.route('/api/sentiment', methods=['POST'])
+def sentiment_analysis():
+    data = request.get_json()
+    print(f"Received data: {data}")
+    text = data.get("text", "").strip()
+
+    if not text:
+        return jsonify({"error": "Text is required", "sentiment": "", "negative": 0.33, "neutral": 0.33, "positive": 0.33}), 400
+
+    try:
+        sentiment_result = analyze_sentiment(text)
+
+        return jsonify({
+            "negative": sentiment_result["negative"],
+            "neutral": sentiment_result["neutral"],
+            "positive": sentiment_result["positive"],
+        })
+
+    except Exception as e:
+        error_details = traceback.format_exc()
+        logger.error(f"Sentiment analysis error: {e}\n{error_details}")
+        return jsonify({
+            "error": str(e),
+            "negative": 0.33,
+            "neutral": 0.33,
+            "positive": 0.33,
+        }), 500
+
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "healthy"})
 
+
 if __name__ == "__main__":
     logger.info("Starting Flask API server...")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)

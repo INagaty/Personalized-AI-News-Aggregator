@@ -6,6 +6,8 @@ const News = () => {
   const [personalized, setPersonalized] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sentiments, setSentiments] = useState({});
+  const [sentimentLoading, setSentimentLoading] = useState({});
 
   const fetchNews = async () => {
     const token = localStorage.getItem("token");
@@ -34,6 +36,30 @@ const News = () => {
     }
   };
 
+  const fetchSentiment = async (summary, articleId) => {
+    setSentimentLoading((prev) => ({ ...prev, [articleId]: true }));
+    try {
+      const response = await axios.post(
+        "http://localhost:8000/api/v1/users/getSentiment", // assuming your new endpoint
+        { summary }
+      );
+
+      // Set sentiment state with proper sentiment values
+      setSentiments((prev) => ({
+        ...prev,
+        [articleId]: {
+          negative: response.data.negative || 0, // Ensure it's default to 0 if undefined
+          neutral: response.data.neutral || 0,
+          positive: response.data.positive || 0,
+        },
+      }));
+    } catch (error) {
+      console.error("Error fetching sentiment:", error);
+    } finally {
+      setSentimentLoading((prev) => ({ ...prev, [articleId]: false }));
+    }
+  };
+
   useEffect(() => {
     fetchNews();
   }, [personalized]);
@@ -48,7 +74,11 @@ const News = () => {
       </div>
 
       {error && <p style={{ color: "red", marginBottom: "10px" }}>{error}</p>}
-      {loading && <p>Loading news...</p>}
+      {loading && (
+        <div className="spinner-container">
+          <div className="spinner"></div>
+        </div>
+      )}
 
       <div className="news-list">
         {!loading && articles.length === 0 && !error && (
@@ -71,10 +101,26 @@ const News = () => {
               />
             )}
             <p>{article.description}</p>
-            <p>
-              <strong>Sentiment:</strong> {article.sentiment} (
-              {(article.sentimentConfidence * 100).toFixed(1)}%)
-            </p>
+
+            {!sentiments[idx] && !sentimentLoading[idx] && (
+              <button onClick={() => fetchSentiment(article.description, idx)}>
+                Show Sentiment
+              </button>
+            )}
+
+            {sentimentLoading[idx] && (
+              <div className="spinner-container">
+                <div className="spinner"></div>
+              </div>
+            )}
+            {sentiments[idx] && (
+              <div>
+                <strong>Sentiment Analysis:</strong>
+                <p>Negative: {(sentiments[idx].negative * 100).toFixed(1)}%</p>
+                <p>Neutral: {(sentiments[idx].neutral * 100).toFixed(1)}%</p>
+                <p>Positive: {(sentiments[idx].positive * 100).toFixed(1)}%</p>
+              </div>
+            )}
             <a href={article.url} target="_blank" rel="noopener noreferrer">
               Read more
             </a>
