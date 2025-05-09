@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { FaBell } from "react-icons/fa";
+import { io } from "socket.io-client";
+
+const socket = io("http://localhost:8000"); // Update if needed
 
 const News = () => {
   const [articles, setArticles] = useState([]);
@@ -8,6 +12,9 @@ const News = () => {
   const [loading, setLoading] = useState(false);
   const [sentiments, setSentiments] = useState({});
   const [sentimentLoading, setSentimentLoading] = useState({});
+  const [notifications, setNotifications] = useState([]);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [articlesLoaded, setArticlesLoaded] = useState(false);
 
   const fetchNews = async () => {
     const token = localStorage.getItem("token");
@@ -20,17 +27,17 @@ const News = () => {
       const res = await axios.get(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       setArticles(res.data.data || []);
       setError("");
+      setArticlesLoaded(true);
     } catch (err) {
       console.error("Failed to fetch news:", err.response?.data || err.message);
-      const message =
+      setError(
         err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Failed to fetch news.";
-      setError(message);
+          err.response?.data?.error ||
+          err.message ||
+          "Failed to fetch news."
+      );
     } finally {
       setLoading(false);
     }
@@ -40,15 +47,13 @@ const News = () => {
     setSentimentLoading((prev) => ({ ...prev, [articleId]: true }));
     try {
       const response = await axios.post(
-        "http://localhost:8000/api/v1/users/getSentiment", // assuming your new endpoint
+        "http://localhost:8000/api/v1/users/getSentiment",
         { summary }
       );
-
-      // Set sentiment state with proper sentiment values
       setSentiments((prev) => ({
         ...prev,
         [articleId]: {
-          negative: response.data.negative || 0, // Ensure it's default to 0 if undefined
+          negative: response.data.negative || 0,
           neutral: response.data.neutral || 0,
           positive: response.data.positive || 0,
         },
@@ -62,15 +67,107 @@ const News = () => {
 
   useEffect(() => {
     fetchNews();
-  }, [personalized]);
+
+    socket.on("connect", () => {
+      console.log("✅ Socket connected");
+    });
+
+    socket.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
+    });
+
+    socket.on("breaking-news", (article) => {
+      console.log("🚨 Received breaking news:", article);
+
+      if (article && article.title) {
+        const time = new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        setNotifications((prev) => [
+          {
+            ...article,
+            receivedAt: time,
+          },
+          ...prev,
+        ]);
+      } else {
+        console.log("Received invalid article:", article);
+      }
+    });
+
+    return () => {
+      socket.off("breaking-news");
+      socket.off("connect");
+      socket.off("disconnect");
+    };
+  }, []);
 
   return (
     <div className="news-container">
       <div className="news-header">
         <h2>{personalized ? "Personalized News" : "General News"}</h2>
-        <button onClick={() => setPersonalized(!personalized)}>
-          {personalized ? "Show General News" : "Show Personalized News"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+          {articlesLoaded && (
+            <div
+              className="notification-bell"
+              onClick={() => setDropdownVisible((prev) => !prev)}
+            >
+              <FaBell />
+              {notifications.length > 0 && (
+                <span className="notification-count">
+                  {notifications.length}
+                </span>
+              )}
+
+              {dropdownVisible && (
+                <div className="notification-dropdown">
+                  <strong>🔔 Breaking News</strong>
+                  {notifications.length === 0 ? (
+                    <div className="no-notifications">No new notifications</div>
+                  ) : (
+                    notifications.map((notification, idx) => (
+                      <p
+                        key={idx}
+                        onClick={() => {
+                          window.open(
+                            notification.url,
+                            "_blank",
+                            "noopener,noreferrer"
+                          );
+                          setNotifications((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          );
+                        }}
+                        style={{ cursor: "pointer" }}
+                        title="Click to open article"
+                      >
+                        <strong>
+                          {notification.title.length > 40
+                            ? `${notification.title.slice(0, 40)}...`
+                            : notification.title}
+                        </strong>
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: "12px",
+                            color: "#666",
+                          }}
+                        >
+                          {notification.receivedAt}
+                        </span>
+                      </p>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <button onClick={() => setPersonalized(!personalized)}>
+            {personalized ? "Show General News" : "Show Personalized News"}
+          </button>
+        </div>
       </div>
 
       {error && <p style={{ color: "red", marginBottom: "10px" }}>{error}</p>}
@@ -85,7 +182,7 @@ const News = () => {
           <p>No news available at the moment.</p>
         )}
         {articles.map((article, idx) => (
-          <div key={idx} className="news-card" style={{ marginBottom: "20px" }}>
+          <div key={idx} className="news-card">
             <h3>{article.title}</h3>
             {article.urlToImage && (
               <img
@@ -113,6 +210,7 @@ const News = () => {
                 <div className="spinner"></div>
               </div>
             )}
+
             {sentiments[idx] && (
               <div>
                 <strong>Sentiment Analysis:</strong>
@@ -121,6 +219,7 @@ const News = () => {
                 <p>Positive: {(sentiments[idx].positive * 100).toFixed(1)}%</p>
               </div>
             )}
+
             <a href={article.url} target="_blank" rel="noopener noreferrer">
               Read more
             </a>

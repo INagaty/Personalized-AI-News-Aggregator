@@ -1,6 +1,10 @@
 const asyncHandler = require("express-async-handler");
 const axios = require("axios");
 const ApiError = require("../utils/apiError");
+const fs = require("fs");
+const cacheFile = "./notified.json";
+const { notifyUsers } = require("./notificationService");
+const { io } = require("../index");
 
 // Helper function to handle summarization separately
 const summarizeText = async (text) => {
