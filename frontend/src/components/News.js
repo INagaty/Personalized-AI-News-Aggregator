@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FaBell } from "react-icons/fa";
 import { io } from "socket.io-client";
+import Modal from "react-modal";
 
 const socket = io("http://localhost:8000"); // Update if needed
 
@@ -15,6 +16,61 @@ const News = () => {
   const [notifications, setNotifications] = useState([]);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [articlesLoaded, setArticlesLoaded] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPrefs, setSelectedPrefs] = useState([]);
+  const [availablePrefs, setAvailablePrefs] = useState([]);
+
+  const fetchPreferences = async () => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await axios.get(
+        "http://localhost:8000/api/v1/users/getPreferences",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const { selectedPreferences, availablePreferences } = res.data.data;
+      setSelectedPrefs(selectedPreferences);
+      setAvailablePrefs(availablePreferences);
+    } catch (error) {
+      console.error("Error fetching preferences:", error);
+    }
+  };
+
+  const updatePreferences = async (
+    preferencesToAdd = [],
+    preferencesToRemove = []
+  ) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await axios.post(
+        "http://localhost:8000/api/v1/users/updatePreferences",
+        {
+          preferencesToAdd,
+          preferencesToRemove,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const updated = res.data.data;
+      setSelectedPrefs(updated);
+      setAvailablePrefs(
+        ["sports", "technology", "business", "health", "entertainment"].filter(
+          (p) => !updated.includes(p)
+        )
+      );
+    } catch (error) {
+      console.error("Error updating preferences:", error);
+    }
+  };
+
+  const handleRemovePref = (pref) => updatePreferences([], [pref]);
+  const handleAddPref = (pref) => updatePreferences([pref], []);
+
+  useEffect(() => {
+    if (isModalOpen) fetchPreferences();
+  }, [isModalOpen]);
 
   const fetchNews = async () => {
     const token = localStorage.getItem("token");
@@ -105,68 +161,81 @@ const News = () => {
 
   return (
     <div className="news-container">
-      <div className="news-header">
-        <h2>{personalized ? "Personalized News" : "General News"}</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-          {articlesLoaded && (
-            <div
-              className="notification-bell"
-              onClick={() => setDropdownVisible((prev) => !prev)}
-            >
-              <FaBell />
-              {notifications.length > 0 && (
-                <span className="notification-count">
-                  {notifications.length}
-                </span>
-              )}
+      {/* Black Notification Bar */}
+      <div className="notification-bar">
+        <div className="news-header">
+          <h2>{personalized ? "Personalized News" : "General News"}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+            {articlesLoaded && (
+              <div
+                className="notification-bell"
+                onClick={() => setDropdownVisible((prev) => !prev)}
+              >
+                <FaBell />
+                {notifications.length > 0 && (
+                  <span className="notification-count">
+                    {notifications.length}
+                  </span>
+                )}
 
-              {dropdownVisible && (
-                <div className="notification-dropdown">
-                  <strong>🔔 Breaking News</strong>
-                  {notifications.length === 0 ? (
-                    <div className="no-notifications">No new notifications</div>
-                  ) : (
-                    notifications.map((notification, idx) => (
-                      <p
-                        key={idx}
-                        onClick={() => {
-                          window.open(
-                            notification.url,
-                            "_blank",
-                            "noopener,noreferrer"
-                          );
-                          setNotifications((prev) =>
-                            prev.filter((_, i) => i !== idx)
-                          );
-                        }}
-                        style={{ cursor: "pointer" }}
-                        title="Click to open article"
-                      >
-                        <strong>
-                          {notification.title.length > 40
-                            ? `${notification.title.slice(0, 40)}...`
-                            : notification.title}
-                        </strong>
-                        <span
-                          style={{
-                            display: "block",
-                            fontSize: "12px",
-                            color: "#666",
+                {dropdownVisible && (
+                  <div className="notification-dropdown">
+                    <strong>🔔 Breaking News</strong>
+                    {notifications.length === 0 ? (
+                      <div className="no-notifications">
+                        No new notifications
+                      </div>
+                    ) : (
+                      notifications.map((notification, idx) => (
+                        <p
+                          key={idx}
+                          onClick={() => {
+                            window.open(
+                              notification.url,
+                              "_blank",
+                              "noopener,noreferrer"
+                            );
+                            setNotifications((prev) =>
+                              prev.filter((_, i) => i !== idx)
+                            );
                           }}
+                          style={{ cursor: "pointer" }}
+                          title="Click to open article"
                         >
-                          {notification.receivedAt}
-                        </span>
-                      </p>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          <button onClick={() => setPersonalized(!personalized)}>
-            {personalized ? "Show General News" : "Show Personalized News"}
-          </button>
+                          <strong>
+                            {notification.title.length > 40
+                              ? `${notification.title.slice(0, 40)}...`
+                              : notification.title}
+                          </strong>
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: "12px",
+                              color: "#666",
+                            }}
+                          >
+                            {notification.receivedAt}
+                          </span>
+                        </p>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => setPersonalized(!personalized)}
+              className="toggle-button"
+            >
+              {personalized ? "Show General News" : "Show Personalized News"}
+            </button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="toggle-button"
+            >
+              Change Preferences
+            </button>
+          </div>
         </div>
       </div>
 
@@ -226,8 +295,95 @@ const News = () => {
           </div>
         ))}
       </div>
+      <Modal
+        isOpen={isModalOpen}
+        onRequestClose={() => setIsModalOpen(false)}
+        style={{
+          content: {
+            top: "50%",
+            left: "50%",
+            right: "auto",
+            bottom: "auto",
+            marginRight: "-50%",
+            transform: "translate(-50%, -50%)",
+            width: "400px",
+            maxHeight: "80vh",
+            overflowY: "auto",
+          },
+        }}
+        contentLabel="Change Preferences"
+        ariaHideApp={false}
+      >
+        <h2 style={{ marginBottom: "10px" }}>Update Preferences</h2>
+
+        <div>
+          <strong>Selected Preferences:</strong>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              marginTop: "8px",
+            }}
+          >
+            {selectedPrefs.map((pref, idx) => (
+              <span
+                key={idx}
+                style={{
+                  backgroundColor: "#f0f0f0",
+                  padding: "5px 10px",
+                  borderRadius: "20px",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {pref}
+                <button
+                  onClick={() => handleRemovePref(pref)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    fontWeight: "bold",
+                    marginLeft: "8px",
+                    cursor: "pointer",
+                    color: "#c00",
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginTop: "15px" }}>
+          <strong>Add Preference:</strong>
+          <select
+            style={{ marginTop: "8px", padding: "5px", width: "100%" }}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value !== "") handleAddPref(value);
+              e.target.value = "";
+            }}
+          >
+            <option value="">-- Select to Add --</option>
+            {availablePrefs.map((pref, idx) => (
+              <option key={idx} value={pref}>
+                {pref}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          onClick={() => setIsModalOpen(false)}
+          className="toggle-button"
+          style={{ marginTop: "20px" }}
+        >
+          Close
+        </button>
+      </Modal>
     </div>
   );
 };
-
 export default News;

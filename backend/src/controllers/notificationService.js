@@ -25,14 +25,14 @@ function isBreakingNews(article) {
   //   const currentTime = new Date();
   //   const publishTime = new Date(article.publishedAt);
   //   const timeDiff = (currentTime - publishTime) / 60000; // Difference in minutes
-  console.log(
-    `Checking "${article.title}" for breaking news in title: ${titleMatches}`
-  );
-  console.log(
-    `Checking "${article.description}" for breaking news in description: ${descriptionMatches}`
-  );
-  //   console.log(
-  //     `Checking "${article.publishedAt}" time difference: ${timeDiff < 1440}`
+  // console.log(
+  //   `Checking "${article.title}" for breaking news in title: ${titleMatches}`
+  // );
+  // console.log(
+  //   `Checking "${article.description}" for breaking news in description: ${descriptionMatches}`
+  // );
+  // //   console.log(
+  // //     `Checking "${article.publishedAt}" time difference: ${timeDiff < 1440}`
   //   );
   return titleMatches || descriptionMatches;
 }
@@ -110,10 +110,9 @@ async function checkForBreakingNews(io) {
         isBreakingNews(article) &&
         !alreadyNotified(article.url)
       ) {
-        if (article.title && article.description) {
-          notifyUsers(io, article);
-          console.log("Sending Breaking News:", article.title);
-        }
+        // if (article.title && article.description) {
+        notifyUsers(io, article);
+        console.log("Sending Breaking News:", article.title);
         saveAsNotified(article.url);
       }
     }

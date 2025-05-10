@@ -1,6 +1,10 @@
 const express = require("express");
 
-const { getMe } = require("../controllers/userController");
+const {
+  getMe,
+  updatePreferences,
+  getPreferences,
+} = require("../controllers/userController");
 const {
   getGeneralNews,
   getPersonalizedNews,
@@ -15,6 +19,8 @@ const router = express.Router();
 router.route("/getMe").get(verifyToken, getMe);
 router.route("/allNews").get(verifyToken, getGeneralNews);
 router.route("/personalizedNews").get(verifyToken, getPersonalizedNews);
+router.route("/getPreferences").get(verifyToken, getPreferences);
+router.route("/updatePreferences").post(verifyToken, updatePreferences);
 router.route("/getSentiment").post(getSentimentForSummary);
 
 module.exports = router;
