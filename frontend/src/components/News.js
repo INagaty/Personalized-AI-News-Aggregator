@@ -157,7 +157,7 @@ const News = () => {
       socket.off("connect");
       socket.off("disconnect");
     };
-  }, []);
+  }, [personalized]);
 
   return (
     <div className="news-container">
@@ -224,10 +224,19 @@ const News = () => {
               </div>
             )}
             <button
-              onClick={() => setPersonalized(!personalized)}
+              onClick={() => {
+                setArticles([]);
+                setArticlesLoaded(false);
+                setPersonalized((prev) => !prev);
+              }}
               className="toggle-button"
             >
               {personalized ? "Show General News" : "Show Personalized News"}
+              {console.log(
+                personalized
+                  ? "Showing Personalized News"
+                  : "Showing General News"
+              )}
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
